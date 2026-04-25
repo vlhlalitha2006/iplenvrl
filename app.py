@@ -5,6 +5,7 @@ import argparse
 import csv
 from collections import defaultdict
 import plotly.graph_objects as go
+import pandas as pd
 
 TEAM_NAMES = ["MI", "CSK", "RCB", "KKR", "DC", "RR", "PBKS", "SRH"]
 PERSONALITIES = [
@@ -301,27 +302,84 @@ def _build_line_fig(title, episodes, teams_payload, key):
 
 
 def _load_analytics():
-    curve = _safe_load_json("training/logs/reward_curve.json", {})
-    teams_payload = curve.get("teams", {}) if isinstance(curve, dict) else {}
-    episodes = curve.get("episodes", []) if isinstance(curve, dict) else []
+    # Build accurate curves directly from rewards.csv (episode-level means), not pre-aggregated json.
+    rewards_path = "training/logs/rewards.csv"
+    teams_payload = {t: {"episodes": [], "rewards": [], "win_rate": [], "budget_efficiency": []} for t in TEAM_NAMES}
 
-    reward_fig = _build_line_fig("Reward Curve per Team", episodes, teams_payload, "rewards")
-    win_fig = _build_line_fig("Win-rate Curve (Rolling) per Team", episodes, teams_payload, "win_rate")
-    budget_fig = _build_line_fig("Budget-efficiency Curve (Rolling) per Team", episodes, teams_payload, "budget_efficiency")
+    if os.path.exists(rewards_path):
+        df = pd.read_csv(rewards_path)
+        if not df.empty:
+            df["team_id"] = df["team_id"].astype(str).map(_team_label)
+            df["episode"] = pd.to_numeric(df["episode"], errors="coerce")
+            df["TOTAL"] = pd.to_numeric(df.get("TOTAL"), errors="coerce")
+            df["final_position"] = pd.to_numeric(df.get("final_position"), errors="coerce")
+            df["budget_wasted_cr"] = pd.to_numeric(df.get("budget_wasted_cr"), errors="coerce")
+            df = df.dropna(subset=["episode", "team_id"])
+            df = df[df["team_id"].isin(TEAM_NAMES)]
+            df["episode"] = df["episode"].astype(int)
 
-    # Headline metrics from learning proof
-    proof = _safe_load_json(
-        "training/logs/emergent_insights.json",
-        {
-            "reward_improvement_pct": 0.0,
-            "win_rate_improvement_pct": 0.0,
-            "budget_efficiency_improvement_pct": 0.0,
-        },
-    )
+            grouped = (
+                df.groupby(["team_id", "episode"], as_index=False)
+                .agg(
+                    reward=("TOTAL", "mean"),
+                    win=("final_position", lambda x: float((x <= 4).mean())),
+                    budget_eff=("budget_wasted_cr", lambda x: float((1.0 - (x / 90.0)).clip(lower=0.0, upper=1.0).mean())),
+                )
+                .sort_values(["team_id", "episode"])
+            )
+
+            for team in TEAM_NAMES:
+                tdf = grouped[grouped["team_id"] == team].copy()
+                if tdf.empty:
+                    continue
+                tdf["reward_roll"] = tdf["reward"].rolling(window=10, min_periods=1).mean()
+                tdf["win_roll"] = tdf["win"].rolling(window=10, min_periods=1).mean()
+                tdf["budget_roll"] = tdf["budget_eff"].rolling(window=10, min_periods=1).mean()
+                teams_payload[team] = {
+                    "episodes": tdf["episode"].tolist(),
+                    "rewards": tdf["reward_roll"].tolist(),
+                    "win_rate": tdf["win_roll"].tolist(),
+                    "budget_efficiency": tdf["budget_roll"].tolist(),
+                }
+
+    # Build figures with per-team episode axes.
+    reward_fig = go.Figure()
+    win_fig = go.Figure()
+    budget_fig = go.Figure()
+    for team in TEAM_NAMES:
+        data = teams_payload.get(team, {})
+        x = data.get("episodes", [])
+        if not x:
+            continue
+        reward_fig.add_trace(go.Scatter(x=x, y=data.get("rewards", []), mode="lines", name=team))
+        win_fig.add_trace(go.Scatter(x=x, y=data.get("win_rate", []), mode="lines", name=team))
+        budget_fig.add_trace(go.Scatter(x=x, y=data.get("budget_efficiency", []), mode="lines", name=team))
+
+    reward_fig.update_layout(title="Reward Curve per Team", xaxis_title="Episode", yaxis_title="Rewards", template="plotly_dark")
+    win_fig.update_layout(title="Win-rate Curve (Rolling) per Team", xaxis_title="Episode", yaxis_title="Win Rate", template="plotly_dark")
+    budget_fig.update_layout(title="Budget-efficiency Curve (Rolling) per Team", xaxis_title="Episode", yaxis_title="Budget Efficiency", template="plotly_dark")
+
+    # Headline metrics computed from first 10 vs last 10 rolling points.
+    def _pct(first, last):
+        if abs(first) < 1e-9:
+            return 0.0 if abs(last) < 1e-9 else 100.0
+        return ((last - first) / abs(first)) * 100.0
+
+    reward_impr, win_impr, budget_impr = [], [], []
+    for team in TEAM_NAMES:
+        d = teams_payload.get(team, {})
+        r = d.get("rewards", [])
+        w = d.get("win_rate", [])
+        b = d.get("budget_efficiency", [])
+        if len(r) >= 20 and len(w) >= 20 and len(b) >= 20:
+            reward_impr.append(_pct(sum(r[:10]) / 10.0, sum(r[-10:]) / 10.0))
+            win_impr.append(_pct(sum(w[:10]) / 10.0, sum(w[-10:]) / 10.0))
+            budget_impr.append(_pct(sum(b[:10]) / 10.0, sum(b[-10:]) / 10.0))
+
     headline = (
-        f"reward_improvement_pct: {float(proof.get('reward_improvement_pct', 0.0)):.2f}%\n"
-        f"win_rate_improvement_pct: {float(proof.get('win_rate_improvement_pct', 0.0)):.2f}%\n"
-        f"budget_efficiency_improvement_pct: {float(proof.get('budget_efficiency_improvement_pct', 0.0)):.2f}%"
+        f"reward_improvement_pct: {sum(reward_impr)/max(1,len(reward_impr)):.2f}%\n"
+        f"win_rate_improvement_pct: {sum(win_impr)/max(1,len(win_impr)):.2f}%\n"
+        f"budget_efficiency_improvement_pct: {sum(budget_impr)/max(1,len(budget_impr)):.2f}%"
     )
 
     # Aggregates from rewards.csv
