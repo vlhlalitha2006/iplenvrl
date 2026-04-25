@@ -67,6 +67,22 @@ def _format_season_text(season_data):
 
 
 def _format_transfer_text(transfer_log):
+    players_file = os.path.join(os.path.dirname(__file__), "data", "players.json")
+    id_to_name = {}
+    try:
+        if os.path.exists(players_file):
+            with open(players_file, "r", encoding="utf-8") as f:
+                players = json.load(f)
+            id_to_name = {int(p.get("id")): p.get("name", f"Player#{p.get('id')}") for p in players}
+    except Exception:
+        id_to_name = {}
+
+    def _name_from_id(pid):
+        try:
+            return id_to_name.get(int(pid), f"Player#{pid}")
+        except Exception:
+            return f"Player#{pid}"
+
     if not transfer_log:
         return "No transfer activity recorded."
     lines = ["Recent Transfers:"]
@@ -74,8 +90,19 @@ def _format_transfer_text(transfer_log):
         if isinstance(t, dict):
             from_team = _team_label(t.get("from_team", t.get("from", "?")))
             to_team = _team_label(t.get("to_team", t.get("to", "?")))
-            player = t.get("player_name", t.get("player", "?"))
-            lines.append(f"- {player}: {from_team} -> {to_team}")
+            # Transfer log uses player IDs; resolve to names for readable Phase 3 output.
+            give_id = t.get("give_player_id")
+            want_id = t.get("want_player_id")
+            if give_id is not None and want_id is not None:
+                give_name = _name_from_id(give_id)
+                want_name = _name_from_id(want_id)
+                status = "ACCEPTED" if t.get("accepted", False) else "REJECTED"
+                lines.append(
+                    f"- {status}: {from_team} offered {give_name} for {want_name} from {to_team}"
+                )
+            else:
+                player = t.get("player_name", t.get("player", "?"))
+                lines.append(f"- {player}: {from_team} -> {to_team}")
         else:
             lines.append(f"- {str(t)}")
     return "\n".join(lines)
