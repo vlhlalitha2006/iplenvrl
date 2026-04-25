@@ -81,7 +81,72 @@ def _format_transfer_text(transfer_log):
     return "\n".join(lines)
 
 
-def run_full_simulation_cycle():
+def _extract_auction_events_from_env(env):
+    logs = []
+    if getattr(env, "auction_engine", None) is None:
+        return logs
+    for ev in getattr(env.auction_engine, "auction_log", []):
+        if not isinstance(ev, dict):
+            continue
+        if ev.get("event") != "sold":
+            continue
+        player_id = ev.get("player_id")
+        player_name = f"Player #{player_id}"
+        try:
+            if player_id is not None:
+                player = env._player_from_id(int(player_id))
+                player_name = player.get("name", player_name)
+        except Exception:
+            pass
+        team = _team_label(ev.get("team_id", "?"))
+        price = float(ev.get("price", 0.0) or 0.0)
+        logs.append(f"{player_name} -> {team} @ Rs.{price:.1f}Cr")
+    return logs
+
+
+def _build_transfer_actions(env):
+    actions = {}
+    if getattr(env, "transfer_market", None) is None:
+        return {team: ("skip", None) for team in TEAM_NAMES}
+
+    for idx, team_id in enumerate(TEAM_NAMES):
+        obs = env.transfer_market.get_transfer_observation(team_id)
+        trades_remaining = int(obs.get("trades_remaining", 0))
+        weak_players = obs.get("own_weak_players", [])
+        if trades_remaining <= 0 or not weak_players:
+            actions[team_id] = ("skip", None)
+            continue
+
+        # Target next team in ring that has at least one player.
+        target_team = None
+        target_player = None
+        for j in range(1, len(TEAM_NAMES)):
+            cand_team = TEAM_NAMES[(idx + j) % len(TEAM_NAMES)]
+            cand_squad = env.team_squads.get(cand_team, [])
+            if cand_squad:
+                target_team = cand_team
+                target_player = cand_squad[0]
+                break
+
+        if target_team is None or target_player is None:
+            actions[team_id] = ("skip", None)
+            continue
+
+        give_player_id = int(weak_players[0].get("id"))
+        want_player_id = int(target_player.get("id"))
+        actions[team_id] = (
+            "trade",
+            {
+                "to_team": target_team,
+                "give_player_id": give_player_id,
+                "want_player_id": want_player_id,
+                "cash": 0.0,
+            },
+        )
+    return actions
+
+
+def run_full_simulation_cycle(fast_mode=False):
     # Lazy import to keep startup fast on Colab.
     from env.ipl_env import IPLAuctionEnv
     from agents.base_agent import BaseIPLAgent
@@ -98,31 +163,33 @@ def run_full_simulation_cycle():
 
     obs = env.reset()
     done = False
-    log = []
     last_info = {}
     is_colab = "COLAB_RELEASE_TAG" in os.environ
-    # Keep demo responsive on Colab by capping runtime/steps.
-    max_steps = 140 if is_colab else 260
-    max_seconds = 12 if is_colab else 20
+    # Full mode gives correct phase outputs; fast mode is optional.
+    max_steps = 90 if (is_colab and fast_mode) else 10000
+    max_seconds = 12 if (is_colab and fast_mode) else 120
     start_time = time.time()
     steps = 0
 
     while not done:
+        phase = obs.get(TEAM_NAMES[0], {}).get("phase", "auction")
         actions = {}
-        for team_id in TEAM_NAMES:
-            decision = agents[team_id].decide_bid(obs.get(team_id, {}))
-            if decision.get("action") == "bid":
-                actions[team_id] = ("bid", decision.get("amount", 0.5), decision.get("bluff", False))
-            else:
-                actions[team_id] = ("pass", None)
+        if phase == "auction":
+            for team_id in TEAM_NAMES:
+                decision = agents[team_id].decide_bid(obs.get(team_id, {}))
+                if decision.get("action") == "bid":
+                    actions[team_id] = ("bid", decision.get("amount", 0.5), decision.get("bluff", False))
+                else:
+                    actions[team_id] = ("pass", None)
+        elif phase == "transfer":
+            actions = _build_transfer_actions(env)
+        else:
+            # Season phase does not require explicit actions in this environment.
+            actions = {team_id: ("skip", None) for team_id in TEAM_NAMES}
 
         obs, rewards, done, info = env.step(actions)
         del rewards
         last_info = info
-        if "lot_closed" in info:
-            lot = info["lot_closed"]
-            winner = TEAM_NAMES[int(lot["winner"])] if str(lot["winner"]).isdigit() else str(lot["winner"])
-            log.append(f"{lot['player_name']} -> {winner} @ Rs.{lot['price']:.1f}Cr")
         steps += 1
         if steps >= max_steps or (time.time() - start_time) >= max_seconds:
             break
@@ -147,10 +214,12 @@ def run_full_simulation_cycle():
             metrics_lines.append(f"- {team}: N/A")
     metrics_text = "\n".join(metrics_lines)
 
-    auction_text = "\n".join(log[-30:]) if log else "No lot-close events captured."
+    log = _extract_auction_events_from_env(env)
+    auction_text = "\n".join(log[-30:]) if log else "No sold lots captured."
     if not done:
         auction_text = (
-            f"Fast demo mode: showing partial simulation ({steps} steps in {time.time() - start_time:.1f}s).\n\n"
+            f"Simulation stopped early ({steps} steps in {time.time() - start_time:.1f}s).\n"
+            f"Enable full run by turning off Fast Mode.\n\n"
             + auction_text
         )
     return auction_text, roster_rows, season_text, transfer_text, metrics_text
@@ -319,6 +388,7 @@ with gr.Blocks(title="IPL RL Auction") as demo:
     )
 
     run_btn = gr.Button("Run Full Simulation Cycle", variant="primary")
+    fast_mode = gr.Checkbox(label="Fast Mode (quicker, may show partial phases)", value=False)
 
     with gr.Tabs():
         with gr.Tab("Phase 1: Auction"):
@@ -370,6 +440,7 @@ with gr.Blocks(title="IPL RL Auction") as demo:
 
     run_btn.click(
         fn=run_full_simulation_cycle,
+        inputs=[fast_mode],
         outputs=[auction_log, rosters_out, season_out, transfer_out, metrics_out],
     )
 
