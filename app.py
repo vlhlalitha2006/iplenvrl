@@ -101,8 +101,9 @@ def _format_transfer_text(transfer_log):
                     f"- {status}: {from_team} offered {give_name} for {want_name} from {to_team}"
                 )
             else:
-                player = t.get("player_name", t.get("player", "?"))
-                lines.append(f"- {player}: {from_team} -> {to_team}")
+                reason = str(t.get("reason", "No player-level details"))
+                status = "ACCEPTED" if t.get("accepted", False) else "REJECTED"
+                lines.append(f"- {status}: {from_team} -> {to_team} ({reason})")
         else:
             lines.append(f"- {str(t)}")
     return "\n".join(lines)
