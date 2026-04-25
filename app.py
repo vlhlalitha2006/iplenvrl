@@ -1,0 +1,395 @@
+import gradio as gr
+import json
+import os
+import argparse
+import csv
+from collections import defaultdict
+import plotly.graph_objects as go
+
+TEAM_NAMES = ["MI", "CSK", "RCB", "KKR", "DC", "RR", "PBKS", "SRH"]
+PERSONALITIES = [
+    "aggressive",
+    "conservative",
+    "aggressive",
+    "balanced",
+    "role_filler",
+    "conservative",
+    "balanced",
+    "role_filler",
+]
+
+
+def _team_label(raw):
+    raw_str = str(raw)
+    if raw_str in TEAM_NAMES:
+        return raw_str
+    if raw_str.isdigit():
+        idx = int(raw_str)
+        if 0 <= idx < len(TEAM_NAMES):
+            return TEAM_NAMES[idx]
+    return raw_str
+
+
+def _format_rosters_rows(squads):
+    rows = []
+    for team in TEAM_NAMES:
+        squad = squads.get(team, [])
+        if not squad:
+            # Some env variants store by numeric index.
+            idx = TEAM_NAMES.index(team)
+            squad = squads.get(idx, squads.get(str(idx), []))
+        player_names = ", ".join([p.get("name", "?") for p in squad]) if isinstance(squad, list) else ""
+        rows.append([team, player_names])
+    return rows
+
+
+def _format_season_text(season_data):
+    if not isinstance(season_data, dict) or not season_data.get("standings"):
+        return "Season simulation not available for this run."
+    lines = []
+    champion = season_data.get("champion", "--")
+    lines.append(f"Champion: {_team_label(champion)}")
+    lines.append("")
+    lines.append("Standings:")
+    standings = season_data.get("standings", {})
+    ordered = sorted(
+        standings.items(),
+        key=lambda x: x[1].get("rank", 99) if isinstance(x[1], dict) else 99,
+    )
+    for team_id, stats in ordered:
+        team = _team_label(team_id)
+        if not isinstance(stats, dict):
+            continue
+        lines.append(
+            f"- {team}: W {stats.get('wins', 0)} | L {stats.get('losses', 0)} | NRR {float(stats.get('nrr', 0.0)):.3f}"
+        )
+    return "\n".join(lines)
+
+
+def _format_transfer_text(transfer_log):
+    if not transfer_log:
+        return "No transfer activity recorded."
+    lines = ["Recent Transfers:"]
+    for t in transfer_log[-20:]:
+        if isinstance(t, dict):
+            from_team = _team_label(t.get("from_team", t.get("from", "?")))
+            to_team = _team_label(t.get("to_team", t.get("to", "?")))
+            player = t.get("player_name", t.get("player", "?"))
+            lines.append(f"- {player}: {from_team} -> {to_team}")
+        else:
+            lines.append(f"- {str(t)}")
+    return "\n".join(lines)
+
+
+def run_full_simulation_cycle():
+    # Lazy import to keep startup fast on Colab.
+    from env.ipl_env import IPLAuctionEnv
+    from agents.base_agent import BaseIPLAgent
+
+    env = IPLAuctionEnv()
+    agents = {}
+    for i in range(8):
+        team_id = TEAM_NAMES[i]
+        agent = BaseIPLAgent(team_id, PERSONALITIES[i])
+        agent.team_name = TEAM_NAMES[i]
+        agents[team_id] = agent
+
+    import time
+
+    obs = env.reset()
+    done = False
+    log = []
+    last_info = {}
+    is_colab = "COLAB_RELEASE_TAG" in os.environ
+    # Keep demo responsive on Colab by capping runtime/steps.
+    max_steps = 140 if is_colab else 260
+    max_seconds = 12 if is_colab else 20
+    start_time = time.time()
+    steps = 0
+
+    while not done:
+        actions = {}
+        for team_id in TEAM_NAMES:
+            decision = agents[team_id].decide_bid(obs.get(team_id, {}))
+            if decision.get("action") == "bid":
+                actions[team_id] = ("bid", decision.get("amount", 0.5), decision.get("bluff", False))
+            else:
+                actions[team_id] = ("pass", None)
+
+        obs, rewards, done, info = env.step(actions)
+        del rewards
+        last_info = info
+        if "lot_closed" in info:
+            lot = info["lot_closed"]
+            winner = TEAM_NAMES[int(lot["winner"])] if str(lot["winner"]).isdigit() else str(lot["winner"])
+            log.append(f"{lot['player_name']} -> {winner} @ Rs.{lot['price']:.1f}Cr")
+        steps += 1
+        if steps >= max_steps or (time.time() - start_time) >= max_seconds:
+            break
+
+    squads = last_info.get("final_squads", env.team_squads)
+    roster_rows = _format_rosters_rows(squads if isinstance(squads, dict) else {})
+
+    season_data = env.last_season_results if hasattr(env, "last_season_results") else {}
+    season_text = _format_season_text(season_data)
+
+    transfer_log = []
+    if getattr(env, "transfer_market", None) is not None:
+        transfer_log = getattr(env.transfer_market, "trade_log", []) or []
+    transfer_text = _format_transfer_text(transfer_log)
+
+    metrics_lines = ["Team Reward Snapshot:"]
+    for team in TEAM_NAMES:
+        try:
+            total = float(env.compute_reward(team))
+            metrics_lines.append(f"- {team}: {total:+.2f}")
+        except Exception:
+            metrics_lines.append(f"- {team}: N/A")
+    metrics_text = "\n".join(metrics_lines)
+
+    auction_text = "\n".join(log[-30:]) if log else "No lot-close events captured."
+    if not done:
+        auction_text = (
+            f"Fast demo mode: showing partial simulation ({steps} steps in {time.time() - start_time:.1f}s).\n\n"
+            + auction_text
+        )
+    return auction_text, roster_rows, season_text, transfer_text, metrics_text
+
+
+def load_results():
+    try:
+        if not os.path.exists("training/logs/reward_curve.json"):
+            return "No training data yet. Run train.py first."
+        with open("training/logs/reward_curve.json", "r", encoding="utf-8") as f:
+            data = json.load(f)
+        teams = data.get("teams", {})
+        lines = []
+        for team, metrics in teams.items():
+            rewards = metrics.get("rewards", [])
+            if rewards:
+                window = rewards[-10:] if len(rewards) >= 10 else rewards
+                avg = sum(window) / max(1, len(window))
+                lines.append(f"{team}: Avg Reward (last 10 eps) = {avg:.1f}")
+        return "\n".join(lines) or "No training data yet. Run train.py first."
+    except Exception:
+        return "No training data yet. Run train.py first."
+
+
+APP_CSS = """
+body { background: #070f25 !important; }
+.gradio-container { background: #070f25 !important; color: #e6ebff !important; }
+.panel { border: 1px solid #2b3768; border-radius: 10px; }
+"""
+
+
+def _safe_load_json(path, default):
+    try:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return default
+
+
+def _build_line_fig(title, episodes, teams_payload, key):
+    fig = go.Figure()
+    for team in TEAM_NAMES:
+        metrics = teams_payload.get(team, {})
+        y = metrics.get(key, [])
+        if y:
+            fig.add_trace(go.Scatter(x=episodes[: len(y)], y=y, mode="lines", name=team))
+    fig.update_layout(title=title, xaxis_title="Episode", yaxis_title=key.replace("_", " ").title(), template="plotly_dark")
+    return fig
+
+
+def _load_analytics():
+    curve = _safe_load_json("training/logs/reward_curve.json", {})
+    teams_payload = curve.get("teams", {}) if isinstance(curve, dict) else {}
+    episodes = curve.get("episodes", []) if isinstance(curve, dict) else []
+
+    reward_fig = _build_line_fig("Reward Curve per Team", episodes, teams_payload, "rewards")
+    win_fig = _build_line_fig("Win-rate Curve (Rolling) per Team", episodes, teams_payload, "win_rate")
+    budget_fig = _build_line_fig("Budget-efficiency Curve (Rolling) per Team", episodes, teams_payload, "budget_efficiency")
+
+    # Headline metrics from learning proof
+    proof = _safe_load_json(
+        "training/logs/emergent_insights.json",
+        {
+            "reward_improvement_pct": 0.0,
+            "win_rate_improvement_pct": 0.0,
+            "budget_efficiency_improvement_pct": 0.0,
+        },
+    )
+    headline = (
+        f"reward_improvement_pct: {float(proof.get('reward_improvement_pct', 0.0)):.2f}%\n"
+        f"win_rate_improvement_pct: {float(proof.get('win_rate_improvement_pct', 0.0)):.2f}%\n"
+        f"budget_efficiency_improvement_pct: {float(proof.get('budget_efficiency_improvement_pct', 0.0)):.2f}%"
+    )
+
+    # Aggregates from rewards.csv
+    champion_counts = defaultdict(int)
+    rank_sum = defaultdict(float)
+    budget_sum = defaultdict(float)
+    rows_count = defaultdict(int)
+    try:
+        with open("training/logs/rewards.csv", "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                team = str(row.get("team_id", "")).strip()
+                if team not in TEAM_NAMES:
+                    continue
+                final_pos = float(row.get("final_position", 8) or 8)
+                budget_wasted = float(row.get("budget_wasted_cr", 0) or 0)
+                if int(final_pos) == 1:
+                    champion_counts[team] += 1
+                rank_sum[team] += final_pos
+                budget_sum[team] += budget_wasted
+                rows_count[team] += 1
+    except Exception:
+        pass
+
+    aggregate_lines = ["Champion distribution / avg final rank / avg budget wasted"]
+    for team in TEAM_NAMES:
+        n = max(1, rows_count[team])
+        aggregate_lines.append(
+            f"- {team}: champions={champion_counts[team]}, avg_rank={rank_sum[team]/n:.2f}, avg_budget_wasted={budget_sum[team]/n:.2f} Cr"
+        )
+    aggregate_text = "\n".join(aggregate_lines)
+
+    # Behavior insights
+    behaviors = _safe_load_json("training/logs/behavior_summaries.json", [])
+    if isinstance(behaviors, dict):
+        behaviors = [behaviors]
+    metrics_acc = {t: {"overbid_rate": [], "block_rate": [], "patience_score": [], "bluff_success_rate": [], "labels": []} for t in TEAM_NAMES}
+    for ep in behaviors:
+        if not isinstance(ep, dict):
+            continue
+        for i, team in enumerate(TEAM_NAMES):
+            b = ep.get(str(i), {})
+            if not isinstance(b, dict):
+                continue
+            for key in ["overbid_rate", "block_rate", "patience_score", "bluff_success_rate"]:
+                metrics_acc[team][key].append(float(b.get(key, 0.0) or 0.0))
+            metrics_acc[team]["labels"].append(str(b.get("label", "?")))
+
+    behavior_lines = ["Behavior insights (emergent)"]
+    label_lines = ["Strategy label evolution"]
+    for team in TEAM_NAMES:
+        vals = metrics_acc[team]
+        n = max(1, len(vals["overbid_rate"]))
+        behavior_lines.append(
+            f"- {team}: overbid={100*sum(vals['overbid_rate'])/n:.2f}% | "
+            f"block={100*sum(vals['block_rate'])/n:.2f}% | "
+            f"patience={sum(vals['patience_score'])/n:.3f} | "
+            f"bluff_success={100*sum(vals['bluff_success_rate'])/n:.2f}%"
+        )
+        labels = [x for x in vals["labels"] if x and x != "?"]
+        if labels:
+            short = labels[:: max(1, len(labels) // 5)]
+            label_lines.append(f"- {team}: " + " -> ".join(short[:6]))
+        else:
+            label_lines.append(f"- {team}: no labels yet")
+
+    # Reward curve image path fallback
+    curve_img = None
+    if os.path.exists("training/logs/reward_curve.png"):
+        curve_img = "training/logs/reward_curve.png"
+    elif os.path.exists("training/logs/comparison_curve.png"):
+        curve_img = "training/logs/comparison_curve.png"
+
+    return (
+        reward_fig,
+        win_fig,
+        budget_fig,
+        headline,
+        aggregate_text,
+        "\n".join(behavior_lines),
+        "\n".join(label_lines),
+        curve_img,
+    )
+
+
+with gr.Blocks(title="IPL RL Auction") as demo:
+    gr.Markdown(
+        """
+        # IPL Multi-Agent RL Auction Environment
+        Teaching 8 AI agents to draft, manage, and optimize championship-winning squads across 3 phases.
+        """
+    )
+
+    run_btn = gr.Button("Run Full Simulation Cycle", variant="primary")
+
+    with gr.Tabs():
+        with gr.Tab("Phase 1: Auction"):
+            with gr.Row():
+                auction_log = gr.Textbox(
+                    label="Live Auction Bidding (Last 30 Events)",
+                    lines=16,
+                    elem_classes=["panel"],
+                )
+                rosters_out = gr.Dataframe(
+                    headers=["Team", "Final Rosters (All Players)"],
+                    datatype=["str", "str"],
+                    row_count=(8, "fixed"),
+                    col_count=(2, "fixed"),
+                    interactive=False,
+                    wrap=True,
+                )
+        with gr.Tab("Phase 2: Season results"):
+            season_out = gr.Textbox(label="Season Summary", lines=18, elem_classes=["panel"])
+        with gr.Tab("Phase 3: Transfer Window"):
+            transfer_out = gr.Textbox(label="Transfer Activity", lines=18, elem_classes=["panel"])
+        with gr.Tab("Training Metrics"):
+            metrics_out = gr.Textbox(label="Simulation Metrics", lines=14, elem_classes=["panel"])
+            results_out = gr.Textbox(label="Logged Training Results", lines=8)
+            reward_fig = gr.Plot(label="Reward curve per team across episodes")
+            win_fig = gr.Plot(label="Win-rate curve (rolling) per team")
+            budget_fig = gr.Plot(label="Budget-efficiency curve (rolling) per team")
+            learning_headline = gr.Textbox(label="Learning-proof headline metrics", lines=4)
+            team_aggregates = gr.Textbox(label="Champion/rank/budget aggregates", lines=10)
+            behavior_insights = gr.Textbox(label="Behavior insights", lines=10)
+            strategy_evolution = gr.Textbox(label="Strategy label evolution", lines=10)
+            reward_image = gr.Image(label="Reward Curve Image", type="filepath")
+            gr.Button("Load Analytics").click(
+                fn=_load_analytics,
+                outputs=[
+                    reward_fig,
+                    win_fig,
+                    budget_fig,
+                    learning_headline,
+                    team_aggregates,
+                    behavior_insights,
+                    strategy_evolution,
+                    reward_image,
+                ],
+            )
+            gr.Button("Load Training Logs").click(fn=load_results, outputs=results_out)
+        with gr.Tab("About"):
+            gr.Markdown("Multi-agent RL for IPL team building with auction, season, and transfer phases.")
+
+    run_btn.click(
+        fn=run_full_simulation_cycle,
+        outputs=[auction_log, rosters_out, season_out, transfer_out, metrics_out],
+    )
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Launch IPL RL Gradio app.")
+    parser.add_argument("--share", action="store_true", help="Create a public Gradio link.")
+    parser.add_argument("--port", type=int, default=7860, help="Port to launch the app on.")
+    args = parser.parse_args()
+
+    is_colab = "COLAB_RELEASE_TAG" in os.environ
+    share_enabled = args.share or is_colab
+    # Colab sessions often have occupied ports from old runs; retry nearby ports.
+    for candidate_port in range(args.port, args.port + 20):
+        try:
+            demo.launch(
+                share=share_enabled,
+                server_name="0.0.0.0",
+                server_port=candidate_port,
+            )
+            break
+        except OSError:
+            if candidate_port == args.port + 19:
+                raise

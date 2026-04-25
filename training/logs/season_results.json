@@ -1,0 +1,589 @@
+{
+  "standings": {
+    "MI": {
+      "wins": 7,
+      "losses": 7,
+      "nrr": -0.04860000000000014,
+      "rank": 5
+    },
+    "CSK": {
+      "wins": 8,
+      "losses": 6,
+      "nrr": 0.01459999999999978,
+      "rank": 4
+    },
+    "RCB": {
+      "wins": 8,
+      "losses": 6,
+      "nrr": 0.0786,
+      "rank": 3
+    },
+    "KKR": {
+      "wins": 8,
+      "losses": 6,
+      "nrr": 0.1604,
+      "rank": 2
+    },
+    "DC": {
+      "wins": 10,
+      "losses": 4,
+      "nrr": 0.2396000000000002,
+      "rank": 1
+    },
+    "RR": {
+      "wins": 4,
+      "losses": 10,
+      "nrr": -0.23149999999999998,
+      "rank": 8
+    },
+    "PBKS": {
+      "wins": 5,
+      "losses": 9,
+      "nrr": -0.16519999999999985,
+      "rank": 7
+    },
+    "SRH": {
+      "wins": 6,
+      "losses": 8,
+      "nrr": -0.0479,
+      "rank": 6
+    }
+  },
+  "champion": "DC",
+  "results": [
+    {
+      "team_a": "MI",
+      "team_b": "CSK",
+      "winner": "MI",
+      "loser": "CSK",
+      "sa": 0.5167,
+      "sb": 0.443,
+      "upset": false
+    },
+    {
+      "team_a": "CSK",
+      "team_b": "MI",
+      "winner": "CSK",
+      "loser": "MI",
+      "sa": 0.473,
+      "sb": 0.4668,
+      "upset": false
+    },
+    {
+      "team_a": "MI",
+      "team_b": "RCB",
+      "winner": "MI",
+      "loser": "RCB",
+      "sa": 0.5284,
+      "sb": 0.5212,
+      "upset": false
+    },
+    {
+      "team_a": "RCB",
+      "team_b": "MI",
+      "winner": "RCB",
+      "loser": "MI",
+      "sa": 0.5471,
+      "sb": 0.4504,
+      "upset": false
+    },
+    {
+      "team_a": "MI",
+      "team_b": "KKR",
+      "winner": "MI",
+      "loser": "KKR",
+      "sa": 0.4906,
+      "sb": 0.4436,
+      "upset": false
+    },
+    {
+      "team_a": "KKR",
+      "team_b": "MI",
+      "winner": "MI",
+      "loser": "KKR",
+      "sa": 0.4662,
+      "sb": 0.5006,
+      "upset": false
+    },
+    {
+      "team_a": "MI",
+      "team_b": "DC",
+      "winner": "DC",
+      "loser": "MI",
+      "sa": 0.4432,
+      "sb": 0.4639,
+      "upset": false
+    },
+    {
+      "team_a": "DC",
+      "team_b": "MI",
+      "winner": "DC",
+      "loser": "MI",
+      "sa": 0.518,
+      "sb": 0.5054,
+      "upset": false
+    },
+    {
+      "team_a": "MI",
+      "team_b": "RR",
+      "winner": "RR",
+      "loser": "MI",
+      "sa": 0.4665,
+      "sb": 0.5107,
+      "upset": false
+    },
+    {
+      "team_a": "RR",
+      "team_b": "MI",
+      "winner": "RR",
+      "loser": "MI",
+      "sa": 0.5371,
+      "sb": 0.4408,
+      "upset": false
+    },
+    {
+      "team_a": "MI",
+      "team_b": "PBKS",
+      "winner": "MI",
+      "loser": "PBKS",
+      "sa": 0.5367,
+      "sb": 0.5238,
+      "upset": false
+    },
+    {
+      "team_a": "PBKS",
+      "team_b": "MI",
+      "winner": "PBKS",
+      "loser": "MI",
+      "sa": 0.4808,
+      "sb": 0.4587,
+      "upset": false
+    },
+    {
+      "team_a": "MI",
+      "team_b": "SRH",
+      "winner": "MI",
+      "loser": "SRH",
+      "sa": 0.5549,
+      "sb": 0.4804,
+      "upset": false
+    },
+    {
+      "team_a": "SRH",
+      "team_b": "MI",
+      "winner": "MI",
+      "loser": "SRH",
+      "sa": 0.4511,
+      "sb": 0.4516,
+      "upset": false
+    },
+    {
+      "team_a": "CSK",
+      "team_b": "RCB",
+      "winner": "CSK",
+      "loser": "RCB",
+      "sa": 0.5417,
+      "sb": 0.5124,
+      "upset": false
+    },
+    {
+      "team_a": "RCB",
+      "team_b": "CSK",
+      "winner": "RCB",
+      "loser": "CSK",
+      "sa": 0.5369,
+      "sb": 0.5276,
+      "upset": false
+    },
+    {
+      "team_a": "CSK",
+      "team_b": "KKR",
+      "winner": "KKR",
+      "loser": "CSK",
+      "sa": 0.5043,
+      "sb": 0.5568,
+      "upset": false
+    },
+    {
+      "team_a": "KKR",
+      "team_b": "CSK",
+      "winner": "CSK",
+      "loser": "KKR",
+      "sa": 0.4854,
+      "sb": 0.5062,
+      "upset": false
+    },
+    {
+      "team_a": "CSK",
+      "team_b": "DC",
+      "winner": "CSK",
+      "loser": "DC",
+      "sa": 0.5395,
+      "sb": 0.5142,
+      "upset": false
+    },
+    {
+      "team_a": "DC",
+      "team_b": "CSK",
+      "winner": "DC",
+      "loser": "CSK",
+      "sa": 0.5434,
+      "sb": 0.5093,
+      "upset": false
+    },
+    {
+      "team_a": "CSK",
+      "team_b": "RR",
+      "winner": "CSK",
+      "loser": "RR",
+      "sa": 0.5245,
+      "sb": 0.4455,
+      "upset": false
+    },
+    {
+      "team_a": "RR",
+      "team_b": "CSK",
+      "winner": "CSK",
+      "loser": "RR",
+      "sa": 0.4673,
+      "sb": 0.4747,
+      "upset": false
+    },
+    {
+      "team_a": "CSK",
+      "team_b": "PBKS",
+      "winner": "PBKS",
+      "loser": "CSK",
+      "sa": 0.4496,
+      "sb": 0.4679,
+      "upset": false
+    },
+    {
+      "team_a": "PBKS",
+      "team_b": "CSK",
+      "winner": "CSK",
+      "loser": "PBKS",
+      "sa": 0.4521,
+      "sb": 0.4734,
+      "upset": false
+    },
+    {
+      "team_a": "CSK",
+      "team_b": "SRH",
+      "winner": "CSK",
+      "loser": "SRH",
+      "sa": 0.5163,
+      "sb": 0.4838,
+      "upset": false
+    },
+    {
+      "team_a": "SRH",
+      "team_b": "CSK",
+      "winner": "SRH",
+      "loser": "CSK",
+      "sa": 0.4844,
+      "sb": 0.4651,
+      "upset": false
+    },
+    {
+      "team_a": "RCB",
+      "team_b": "KKR",
+      "winner": "KKR",
+      "loser": "RCB",
+      "sa": 0.472,
+      "sb": 0.5524,
+      "upset": false
+    },
+    {
+      "team_a": "KKR",
+      "team_b": "RCB",
+      "winner": "KKR",
+      "loser": "RCB",
+      "sa": 0.5178,
+      "sb": 0.5131,
+      "upset": false
+    },
+    {
+      "team_a": "RCB",
+      "team_b": "DC",
+      "winner": "DC",
+      "loser": "RCB",
+      "sa": 0.4605,
+      "sb": 0.5275,
+      "upset": false
+    },
+    {
+      "team_a": "DC",
+      "team_b": "RCB",
+      "winner": "RCB",
+      "loser": "DC",
+      "sa": 0.4596,
+      "sb": 0.4855,
+      "upset": false
+    },
+    {
+      "team_a": "RCB",
+      "team_b": "RR",
+      "winner": "RCB",
+      "loser": "RR",
+      "sa": 0.5587,
+      "sb": 0.5168,
+      "upset": false
+    },
+    {
+      "team_a": "RR",
+      "team_b": "RCB",
+      "winner": "RCB",
+      "loser": "RR",
+      "sa": 0.5068,
+      "sb": 0.5222,
+      "upset": false
+    },
+    {
+      "team_a": "RCB",
+      "team_b": "PBKS",
+      "winner": "RCB",
+      "loser": "PBKS",
+      "sa": 0.5411,
+      "sb": 0.5331,
+      "upset": false
+    },
+    {
+      "team_a": "PBKS",
+      "team_b": "RCB",
+      "winner": "PBKS",
+      "loser": "RCB",
+      "sa": 0.4675,
+      "sb": 0.4439,
+      "upset": false
+    },
+    {
+      "team_a": "RCB",
+      "team_b": "SRH",
+      "winner": "RCB",
+      "loser": "SRH",
+      "sa": 0.4779,
+      "sb": 0.4721,
+      "upset": false
+    },
+    {
+      "team_a": "SRH",
+      "team_b": "RCB",
+      "winner": "RCB",
+      "loser": "SRH",
+      "sa": 0.4653,
+      "sb": 0.5531,
+      "upset": false
+    },
+    {
+      "team_a": "KKR",
+      "team_b": "DC",
+      "winner": "KKR",
+      "loser": "DC",
+      "sa": 0.5452,
+      "sb": 0.4778,
+      "upset": false
+    },
+    {
+      "team_a": "DC",
+      "team_b": "KKR",
+      "winner": "DC",
+      "loser": "KKR",
+      "sa": 0.5187,
+      "sb": 0.4875,
+      "upset": false
+    },
+    {
+      "team_a": "KKR",
+      "team_b": "RR",
+      "winner": "KKR",
+      "loser": "RR",
+      "sa": 0.5497,
+      "sb": 0.4951,
+      "upset": false
+    },
+    {
+      "team_a": "RR",
+      "team_b": "KKR",
+      "winner": "RR",
+      "loser": "KKR",
+      "sa": 0.4718,
+      "sb": 0.4696,
+      "upset": false
+    },
+    {
+      "team_a": "KKR",
+      "team_b": "PBKS",
+      "winner": "KKR",
+      "loser": "PBKS",
+      "sa": 0.5074,
+      "sb": 0.4715,
+      "upset": false
+    },
+    {
+      "team_a": "PBKS",
+      "team_b": "KKR",
+      "winner": "KKR",
+      "loser": "PBKS",
+      "sa": 0.5102,
+      "sb": 0.5477,
+      "upset": false
+    },
+    {
+      "team_a": "KKR",
+      "team_b": "SRH",
+      "winner": "KKR",
+      "loser": "SRH",
+      "sa": 0.4879,
+      "sb": 0.4663,
+      "upset": false
+    },
+    {
+      "team_a": "SRH",
+      "team_b": "KKR",
+      "winner": "SRH",
+      "loser": "KKR",
+      "sa": 0.5597,
+      "sb": 0.5011,
+      "upset": false
+    },
+    {
+      "team_a": "DC",
+      "team_b": "RR",
+      "winner": "DC",
+      "loser": "RR",
+      "sa": 0.4509,
+      "sb": 0.4457,
+      "upset": false
+    },
+    {
+      "team_a": "RR",
+      "team_b": "DC",
+      "winner": "DC",
+      "loser": "RR",
+      "sa": 0.4532,
+      "sb": 0.5153,
+      "upset": false
+    },
+    {
+      "team_a": "DC",
+      "team_b": "PBKS",
+      "winner": "DC",
+      "loser": "PBKS",
+      "sa": 0.535,
+      "sb": 0.4907,
+      "upset": false
+    },
+    {
+      "team_a": "PBKS",
+      "team_b": "DC",
+      "winner": "DC",
+      "loser": "PBKS",
+      "sa": 0.4476,
+      "sb": 0.4858,
+      "upset": false
+    },
+    {
+      "team_a": "DC",
+      "team_b": "SRH",
+      "winner": "DC",
+      "loser": "SRH",
+      "sa": 0.5595,
+      "sb": 0.5035,
+      "upset": false
+    },
+    {
+      "team_a": "SRH",
+      "team_b": "DC",
+      "winner": "SRH",
+      "loser": "DC",
+      "sa": 0.5565,
+      "sb": 0.5433,
+      "upset": false
+    },
+    {
+      "team_a": "RR",
+      "team_b": "PBKS",
+      "winner": "PBKS",
+      "loser": "RR",
+      "sa": 0.4414,
+      "sb": 0.5265,
+      "upset": false
+    },
+    {
+      "team_a": "PBKS",
+      "team_b": "RR",
+      "winner": "PBKS",
+      "loser": "RR",
+      "sa": 0.5218,
+      "sb": 0.5044,
+      "upset": false
+    },
+    {
+      "team_a": "RR",
+      "team_b": "SRH",
+      "winner": "SRH",
+      "loser": "RR",
+      "sa": 0.472,
+      "sb": 0.5169,
+      "upset": false
+    },
+    {
+      "team_a": "SRH",
+      "team_b": "RR",
+      "winner": "RR",
+      "loser": "SRH",
+      "sa": 0.4534,
+      "sb": 0.4922,
+      "upset": false
+    },
+    {
+      "team_a": "PBKS",
+      "team_b": "SRH",
+      "winner": "SRH",
+      "loser": "PBKS",
+      "sa": 0.4944,
+      "sb": 0.5545,
+      "upset": false
+    },
+    {
+      "team_a": "SRH",
+      "team_b": "PBKS",
+      "winner": "SRH",
+      "loser": "PBKS",
+      "sa": 0.5451,
+      "sb": 0.4716,
+      "upset": false
+    }
+  ],
+  "bracket": {
+    "Q1": {
+      "winner": "DC",
+      "loser": "KKR",
+      "sa": 0.5001,
+      "sb": 0.4614,
+      "upset": false
+    },
+    "Eliminator": {
+      "winner": "RCB",
+      "loser": "CSK",
+      "sa": 0.5495,
+      "sb": 0.5445,
+      "upset": false
+    },
+    "Q2": {
+      "winner": "RCB",
+      "loser": "KKR",
+      "sa": 0.4758,
+      "sb": 0.5167,
+      "upset": false
+    },
+    "Final": {
+      "winner": "DC",
+      "loser": "RCB",
+      "sa": 0.5131,
+      "sb": 0.4583,
+      "upset": false
+    }
+  }
+}
