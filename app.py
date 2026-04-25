@@ -67,7 +67,33 @@ def _format_season_text(season_data):
     return "\n".join(lines)
 
 
-def _format_transfer_text(transfer_log):
+def _build_season_rows(season_data):
+    rows = []
+    if not isinstance(season_data, dict):
+        return rows
+    standings = season_data.get("standings", {})
+    if not isinstance(standings, dict):
+        return rows
+    ordered = sorted(
+        standings.items(),
+        key=lambda x: x[1].get("rank", 99) if isinstance(x[1], dict) else 99,
+    )
+    for team_id, stats in ordered:
+        if not isinstance(stats, dict):
+            continue
+        rows.append(
+            [
+                _team_label(team_id),
+                int(stats.get("rank", 99)),
+                int(stats.get("wins", 0)),
+                int(stats.get("losses", 0)),
+                round(float(stats.get("nrr", 0.0)), 3),
+            ]
+        )
+    return rows
+
+
+def _build_transfer_rows(transfer_log):
     players_file = os.path.join(os.path.dirname(__file__), "data", "players.json")
     id_to_name = {}
     try:
@@ -84,30 +110,20 @@ def _format_transfer_text(transfer_log):
         except Exception:
             return f"Player#{pid}"
 
-    if not transfer_log:
-        return "No transfer activity recorded."
-    lines = ["Recent Transfers:"]
+    rows = []
     for t in transfer_log[-20:]:
-        if isinstance(t, dict):
-            from_team = _team_label(t.get("from_team", t.get("from", "?")))
-            to_team = _team_label(t.get("to_team", t.get("to", "?")))
-            # Transfer log uses player IDs; resolve to names for readable Phase 3 output.
-            give_id = t.get("give_player_id")
-            want_id = t.get("want_player_id")
-            if give_id is not None and want_id is not None:
-                give_name = _name_from_id(give_id)
-                want_name = _name_from_id(want_id)
-                status = "ACCEPTED" if t.get("accepted", False) else "REJECTED"
-                lines.append(
-                    f"- {status}: {from_team} offered {give_name} for {want_name} from {to_team}"
-                )
-            else:
-                reason = str(t.get("reason", "No player-level details"))
-                status = "ACCEPTED" if t.get("accepted", False) else "REJECTED"
-                lines.append(f"- {status}: {from_team} -> {to_team} ({reason})")
-        else:
-            lines.append(f"- {str(t)}")
-    return "\n".join(lines)
+        if not isinstance(t, dict):
+            continue
+        from_team = _team_label(t.get("from_team", t.get("from", "?")))
+        to_team = _team_label(t.get("to_team", t.get("to", "?")))
+        give_id = t.get("give_player_id")
+        want_id = t.get("want_player_id")
+        give_name = _name_from_id(give_id) if give_id is not None else "-"
+        want_name = _name_from_id(want_id) if want_id is not None else "-"
+        status = "ACCEPTED" if t.get("accepted", False) else "REJECTED"
+        reason = str(t.get("reason", ""))
+        rows.append([status, from_team, to_team, give_name, want_name, reason])
+    return rows
 
 
 def _extract_auction_events_from_env(env):
@@ -129,7 +145,7 @@ def _extract_auction_events_from_env(env):
             pass
         team = _team_label(ev.get("team_id", "?"))
         price = float(ev.get("price", 0.0) or 0.0)
-        logs.append(f"{player_name} -> {team} @ Rs.{price:.1f}Cr")
+        logs.append([player_name, team, round(price, 2)])
     return logs
 
 
@@ -227,31 +243,28 @@ def run_full_simulation_cycle(fast_mode=False):
     roster_rows = _format_rosters_rows(squads if isinstance(squads, dict) else {})
 
     season_data = env.last_season_results if hasattr(env, "last_season_results") else {}
-    season_text = _format_season_text(season_data)
+    season_rows = _build_season_rows(season_data)
+    champion = _team_label(season_data.get("champion", "--")) if isinstance(season_data, dict) else "--"
 
     transfer_log = []
     if getattr(env, "transfer_market", None) is not None:
         transfer_log = getattr(env.transfer_market, "trade_log", []) or []
-    transfer_text = _format_transfer_text(transfer_log)
+    transfer_rows = _build_transfer_rows(transfer_log)
 
-    metrics_lines = ["Team Reward Snapshot:"]
+    metrics_rows = []
     for team in TEAM_NAMES:
         try:
             total = float(env.compute_reward(team))
-            metrics_lines.append(f"- {team}: {total:+.2f}")
+            metrics_rows.append([team, round(total, 2)])
         except Exception:
-            metrics_lines.append(f"- {team}: N/A")
-    metrics_text = "\n".join(metrics_lines)
+            metrics_rows.append([team, None])
 
     log = _extract_auction_events_from_env(env)
-    auction_text = "\n".join(log[-30:]) if log else "No sold lots captured."
+    auction_rows = log[-30:] if log else []
     if not done:
-        auction_text = (
-            f"Simulation stopped early ({steps} steps in {time.time() - start_time:.1f}s).\n"
-            f"Enable full run by turning off Fast Mode.\n\n"
-            + auction_text
-        )
-    return auction_text, roster_rows, season_text, transfer_text, metrics_text
+        # Keep tables structured and show run status separately.
+        champion = f"{champion} (partial run: {steps} steps, {time.time() - start_time:.1f}s)"
+    return auction_rows, roster_rows, champion, season_rows, transfer_rows, metrics_rows
 
 
 def load_results():
@@ -479,10 +492,11 @@ with gr.Blocks(title="IPL RL Auction") as demo:
     with gr.Tabs():
         with gr.Tab("Phase 1: Auction"):
             with gr.Row():
-                auction_log = gr.Textbox(
-                    label="Live Auction Bidding (Last 30 Events)",
-                    lines=16,
-                    elem_classes=["panel"],
+                auction_log = gr.Dataframe(
+                    headers=["Player", "Team", "Price (Cr)"],
+                    datatype=["str", "str", "number"],
+                    interactive=False,
+                    wrap=True,
                 )
                 rosters_out = gr.Dataframe(
                     headers=["Team", "Final Rosters (All Players)"],
@@ -493,11 +507,27 @@ with gr.Blocks(title="IPL RL Auction") as demo:
                     wrap=True,
                 )
         with gr.Tab("Phase 2: Season results"):
-            season_out = gr.Textbox(label="Season Summary", lines=18, elem_classes=["panel"])
+            season_champion = gr.Textbox(label="Champion", lines=1, elem_classes=["panel"])
+            season_out = gr.Dataframe(
+                headers=["Team", "Rank", "Wins", "Losses", "NRR"],
+                datatype=["str", "number", "number", "number", "number"],
+                interactive=False,
+                wrap=True,
+            )
         with gr.Tab("Phase 3: Transfer Window"):
-            transfer_out = gr.Textbox(label="Transfer Activity", lines=18, elem_classes=["panel"])
+            transfer_out = gr.Dataframe(
+                headers=["Status", "From", "To", "Offered Player", "Requested Player", "Reason"],
+                datatype=["str", "str", "str", "str", "str", "str"],
+                interactive=False,
+                wrap=True,
+            )
         with gr.Tab("Training Metrics"):
-            metrics_out = gr.Textbox(label="Simulation Metrics", lines=14, elem_classes=["panel"])
+            metrics_out = gr.Dataframe(
+                headers=["Team", "Total Reward"],
+                datatype=["str", "number"],
+                interactive=False,
+                wrap=True,
+            )
             results_out = gr.Textbox(label="Logged Training Results", lines=8)
             reward_fig = gr.Plot(label="Reward curve per team across episodes")
             win_fig = gr.Plot(label="Win-rate curve (rolling) per team")
@@ -527,7 +557,7 @@ with gr.Blocks(title="IPL RL Auction") as demo:
     run_btn.click(
         fn=run_full_simulation_cycle,
         inputs=[fast_mode],
-        outputs=[auction_log, rosters_out, season_out, transfer_out, metrics_out],
+        outputs=[auction_log, rosters_out, season_champion, season_out, transfer_out, metrics_out],
     )
 
 if __name__ == "__main__":
